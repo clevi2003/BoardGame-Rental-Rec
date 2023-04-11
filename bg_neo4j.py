@@ -63,7 +63,7 @@ class neo4jAPI:
         sim_users = []
         cmd = """
         MATCH (s:User)-[r:SIM_USER]-(u:User)
-        WHERE s.user_id = '""" + user_id + """'
+        WHERE s.ID = '""" + user_id + """'
         RETURN u.user_id
         ORDER BY r.score DESC
         LIMIT 10"""
@@ -71,7 +71,7 @@ class neo4jAPI:
         sim_games = []
         for sim_user in sim_users:
             cmd = """
-            MATCH (s:User {user_id: '""" + sim_user + """'})-[r:RATED]-(b:GAME)
+            MATCH (s:User {ID: '""" + sim_user + """'})-[r:RATED]-(b:GAME)
             WHERE all(a in r where a.score > """ + min_rating + """
             RETURN b.BGGId"""
             self.run_cmd(cmd)
@@ -86,11 +86,11 @@ class neo4jAPI:
         sim_games = []
         for game_id in user_games:
             cmd = """
-            MATCH (s:Game {BGGId: '""" + game_id + """'})-[r:SIM_GAME]->(t:Game)
-            WITH percentileCont(collect(r.score), '""" + min_percentile + "') as min_cutoff, percentileCont(collect(r.score), '" + max_percentile + """') as max_cutoff
-            MATCH (s:Game {BGGId: '""" + game_id + """'})-[r:SIM_GAME]->(t:Game)
-            WHERE r.score >= min_cutoff AND r.weight < max_cutoff
-            RETURN t:Game"""
+            MATCH (s:Game {BGGId: """ + game_id + """})-[r:SIM_GAME]-(u:Game)
+            with percentileCont(r.score, """ + min_percentile + """) as min_cutoff, percentileCont(r.score, """ + max_percentile + """) as max_cutoff
+            MATCH (s:Game {BGGId: """ + game_id + """})-[r:SIM_GAME]-(u:Game)
+            where r.score > min_cutoff and r.score < max_cutoff
+            RETURN u.BGGId"""
             sim_games.extend(self.run_cmd(cmd))
         game_names = [game_db.get_game_data[game['b.BGGId']]['Name'] for game in sim_games if game['b.BGGId'] not in user_games]
         print("content recs:", game_names)
