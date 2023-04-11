@@ -6,6 +6,10 @@ from datetime import date
 import datetime
 from functools import lru_cache
 
+HEADERS = ['BGGId', 'Name', 'GameWeight', 'MinPlayers', 'MaxPlayers', 'ComAgeRec', 'MfgPlaytime', 'ComMinPlaytime',
+           'ComMaxPlaytime', 'MfgAgeRec', 'NumUserRatings', 'Cat:Thematic', 'Cat:Strategy', 'Cat:War', 'Cat:Family',
+           'Cat:CGS', 'Cat:Abstract', 'Cat:Party', 'Cat:Childrens']
+
 
 class BoardGameAPI:
 
@@ -17,20 +21,23 @@ class BoardGameAPI:
     def add_users(self, filename, max_users):
         with open(filename, "r") as infile:
             infile.readline()
-            user_id = 1
-            while True:
+            # while True:
+            for i in range(max_users):
                 line = infile.readline().strip()
                 if len(line) == 0:
                     break
                 # make set of unique user ids
-                self.r.sadd('unique_users', user_id)
+                self.r.sadd('unique_ids', i)
+                self.r.sadd('unique_usernames', line)
+
+
 
                 # make mapping of username to user id
-                self.r.hset('user_id_mapping', mapping={line: user_id})
+                self.r.hset('user_id_mapping', mapping={line: i})
                 # self.r.sadd('usernames', line)
-                user_id += 1
-                if user_id >= max_users + 1:
-                    break
+                # user_id += 1
+                # if user_id >= max_users + 1:
+                #    break
 
     @lru_cache(10000)
     def get_user_id(self, username):
@@ -48,7 +55,10 @@ class BoardGameAPI:
                     break
                 user_id = self.get_user_id(rating[2])
                 if not user_id:
-                    break
+                    pass
+                if not self.r.sismember('unique_games', rating[0]):
+                    pass
+
                 # adds user to list of users who have rated the game
                 self.r.hset(rating[0] + ':rated_by', mapping={str(user_id): rating[1]})
 
@@ -56,25 +66,26 @@ class BoardGameAPI:
                 self.r.hset(str(user_id) + ':rated', mapping={rating[0]: rating[1]})
                 # self.r.zadd(str(rating[0]), {rating[1]: rating[2]})
 
-    def add_games(self, file_name, max_game_id):
+    def add_games(self, file_name, max_game_num):
         """Creates hashes containing book info,
          creates lists of all books by a given author,
-         creates set of all isbns with same title"""
+         creates set of all BGGIds with same title"""
         # opening csv file and reading it
         with open(file_name, "r") as file:
             # header of csv file
             headers = file.readline().strip().split(',')
-            while True:
+            for i in range(max_game_num):
+                # while True:
                 game_lst = file.readline().strip().split(",")
                 # stops if reached the end of file
                 if len(game_lst) < 2:
                     break
-                if int(len(self.r.smembers('unique_games'))) > max_game_id:
-                    break
+                # if int(len(self.r.smembers('unique_games'))) > max_game_id:
+                #    break
                 game_data = {headers[i]: game_lst[i] for i in range(1, len(headers))}
 
                 # adds game information to hash, named by bgg id
-                self.r.hset('game:' + headers[0], mapping=game_data)
+                self.r.hset('game:' + game_lst[0], mapping=game_data)
 
                 # adds game availability
                 # this code can easily be changed to support multiple copies of the same game
@@ -129,10 +140,13 @@ class BoardGameAPI:
     def get_transform_users_ratings(self, user):
         user_ratings = self.r.hgetall(str(user) + ':rated')
         return ({game for game in user_ratings.keys()},
-                {game: (float(score), float(score) - 3, float(score) + 3) for game, score in user_ratings.items()})
+                {game: (float(score), float(score) - 4, float(score) + 4) for game, score in user_ratings.items()})
 
     def get_all_users(self):
-        return self.r.smembers('unique_users')
+        return self.r.smembers('unique_ids')
+
+    def get_all_usernames(self):
+        return self.r.smembers('unique_usernames')
 
     def get_all_games(self):
         return self.r.smembers('unique_games')
@@ -140,3 +154,5 @@ class BoardGameAPI:
     def get_game_data(self, bgg_id):
         return self.r.hgetall('game:' + bgg_id)
 
+    def get_user_ratings(self, user_id):
+        return self.r.hgetall(str(user_id) + ':rated')
