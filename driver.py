@@ -8,7 +8,7 @@ import csv
 
 def main():
     #'''
-    redis_api = BoardGameAPI()
+    #redis_api = BoardGameAPI()
     neo4j_api = neo4jAPI()
 
     # edges = pd.read_csv("final_content_edges.csv")
@@ -26,14 +26,29 @@ def main():
     #neo4j_api.add_node('user_nodes_int.csv', 'User', ['ID'])
 
     # populate content based edges to neo4j
-    #neo4j_api.add_edge('content_edge_int.csv', 'BGGId', 'BGGId', 'Game', 'Game', 'SIM_GAME', 'score', ['to_node', 'from_node', 'sim_score'])
+    neo4j_api.add_edge('168_content_edges.csv', 'BGGId', 'BGGId', 'Game', 'Game', 'SIM_GAME', 'score', ['to_node', 'from_node', 'sim_score'])
 
     # populate collaborative based edges to neo4j
     #neo4j_api.add_edge('colab_int.csv', 'ID', 'ID', 'User', 'User', 'SIM_USER', 'score', ['to_node', 'from_node', 'sim_score'])
 
     # populate user rating edges to neo4j
-    neo4j_api.add_edge('ratings_int.csv', 'BGGId', 'ID', 'Game', 'User', 'RATED', 'score',
-                       ['to_node', 'from_node', 'Rating'])
+    #neo4j_api.add_edge('ratings_int.csv', 'BGGId', 'ID', 'Game', 'User', 'RATED', 'score',
+    #                   ['to_node', 'from_node', 'Rating'])
+
+    # change game ids to int type
+    #neo4j_api.change_id_toint('Game', 'BGGId')
+
+    # change user ids to int type
+    #neo4j_api.change_id_toint('User', 'ID')
+
+    # change relationship properties between users to int type
+    #neo4j_api.change_prop_toint('User', 'User', 'SIM_USER', 'score')
+
+    # change relationship properties between games to int type
+    # neo4j_api.change_prop_toint('Game', 'Game', 'SIM_GAME', 'score')
+
+    # change relationship properties between user and games to int type
+    # neo4j_api.change_prop_toint('Game', 'User', 'RATED', 'score')
 
     # get recommended games
     #neo4j_api.get_all_recs(redis_api, 7)
