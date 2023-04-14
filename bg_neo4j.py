@@ -1,6 +1,5 @@
 from neo4j import GraphDatabase
 import random
-# from bg_redis import BoardGameAPI
 
 
 with open('password.txt') as infile:
@@ -63,44 +62,59 @@ class neo4jAPI:
         sim_users = []
         cmd = """
         MATCH (s:User)-[r:SIM_USER]-(u:User)
-        WHERE s.ID = '""" + user_id + """'
-        RETURN u.user_id
+        WHERE s.ID = """ + str(user_id) + """
+        RETURN u.ID
         ORDER BY r.score DESC
         LIMIT 10"""
         sim_users.extend(self.run_cmd(cmd))
+        sim_users = [elem['u.ID'] for elem in sim_users]
         sim_games = []
         for sim_user in sim_users:
             cmd = """
-            MATCH (s:User {ID: '""" + sim_user + """'})-[r:RATED]-(b:GAME)
-            WHERE all(a in r where a.score > """ + min_rating + """
+            MATCH (s:User {ID: """ + str(sim_user) + """})-[r:RATED]-(b:Game)
+            WHERE r.score > toFloat(""" + str(min_rating) + """)
             RETURN b.BGGId"""
             self.run_cmd(cmd)
             sim_games.extend(self.run_cmd(cmd))
-        BGGIds = [game['b.BGGId'] for game in sim_games if game['b.BGGId'] not in user_games]
-        print("collab recs: ", BGGIds)
-        return random.sample(list(set(BGGIds)), n)
+        game_names = list(set([game_db.get_game_data(game['b.BGGId'])['Name'] for game in sim_games if game['b.BGGId'] not in user_games]))
+        if len(game_names) >= n:
+            return random.sample(list(set(game_names)), n)
+        else:
+            return game_names
 
     def get_content_recs(self, game_db, user_id, n, min_rating, min_percentile, max_percentile):
         """gets nth percentile recommendations based on user's top-rated games"""
-        user_games = [game for game, rating in game_db.get_user_ratings(user_id).items() if rating > min_rating]
+        user_games = [game for game, rating in game_db.get_user_ratings(user_id).items() if float(rating) > min_rating]
         sim_games = []
         for game_id in user_games:
             cmd = """
-            MATCH (s:Game {BGGId: """ + game_id + """})-[r:SIM_GAME]-(u:Game)
-            with percentileCont(r.score, """ + min_percentile + """) as min_cutoff, percentileCont(r.score, """ + max_percentile + """) as max_cutoff
-            MATCH (s:Game {BGGId: """ + game_id + """})-[r:SIM_GAME]-(u:Game)
-            where r.score > min_cutoff and r.score < max_cutoff
-            RETURN u.BGGId"""
+            MATCH (s:Game {BGGId:""" + game_id + """})-[r:SIM_GAME]-(t:Game)
+            WITH percentileCont(r.score, toFloat(""" + str(min_percentile) + ")) as min_cutoff, percentileCont(r.score, toFloat(" + str(max_percentile) + """)) as max_cutoff
+            MATCH (s:Game {BGGId:""" + game_id + """})-[r:SIM_GAME]-(t:Game)
+            WHERE r.score >= min_cutoff AND r.score < max_cutoff
+            RETURN t.BGGId"""
             sim_games.extend(self.run_cmd(cmd))
-        game_names = [game_db.get_game_data[game['b.BGGId']]['Name'] for game in sim_games if game['b.BGGId'] not in user_games]
-        print("content recs:", game_names)
-        return random.sample(list(set(game_names)), n)
+        game_names = list(set([game_db.get_game_data(game['t.BGGId'])['Name'] for game in sim_games if game['t.BGGId'] not in user_games]))
+        if len(game_names) >= n:
+            return random.sample(game_names, n)
+        else:
+            return game_names
 
-    def get_all_recs(self, game_db, user_id, n_collab=2, n_content=2, min_rating=6, min_percentile=.85, max_percentile=.95):
+
+    def get_all_recs(self, game_db, user_id, n_collab=3, n_content=3, min_rating=6, min_percentile=.85, max_percentile=.95):
         """gets final recommended subset from collaborative and content based recommendations"""
         content_recs = self.get_content_recs(game_db=game_db, user_id=user_id, n=n_content, min_rating=min_rating, min_percentile=min_percentile, max_percentile=max_percentile)
         collab_recs = self.get_collab_recs(user_id=user_id, game_db=game_db, n=n_collab, min_rating=min_rating)
-        return content_recs + collab_recs
+        print("Content Recs: ", content_recs)
+        print("Collaborative Recs: ", collab_recs)
+        all_recs = content_recs + collab_recs
+        with open("most_popular_games.csv") as infile:
+            infile.readline()
+            pop_ids = [id.strip() for id in infile.readlines()]
+        pop_recs = list(set([game_db.get_game_data(id)['Name'] for id in pop_ids if game_db.get_game_data(id)['Name'] not in all_recs]))
+        #print(pop_recs)
+        diff_num = len(pop_recs) - len(all_recs)
+        return all_recs + random.sample(pop_recs, diff_num)
 
     def change_id_toint(self, node_label, node_id):
         toint_cmd = """

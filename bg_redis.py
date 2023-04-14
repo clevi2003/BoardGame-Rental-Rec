@@ -5,6 +5,7 @@ import redis
 from datetime import date
 import datetime
 from functools import lru_cache
+from pprint import pprint
 
 HEADERS = ['BGGId', 'Name', 'GameWeight', 'MinPlayers', 'MaxPlayers', 'ComAgeRec', 'MfgPlaytime', 'ComMinPlaytime',
            'ComMaxPlaytime', 'MfgAgeRec', 'NumUserRatings', 'Cat:Thematic', 'Cat:Strategy', 'Cat:War', 'Cat:Family',
@@ -16,7 +17,7 @@ class BoardGameAPI:
     def __init__(self, host='localhost', port=6379, db=0, decode_responses=True):
         self.r = redis.Redis(host=host, port=port, db=db, decode_responses=decode_responses)
         self.money = 0
-        self.r.flushall()
+        #self.r.flushall()
 
     def add_users(self, filename, max_users):
         with open(filename, "r") as infile:
@@ -152,7 +153,7 @@ class BoardGameAPI:
         return self.r.smembers('unique_games')
 
     def get_game_data(self, bgg_id):
-        return self.r.hgetall('game:' + bgg_id)
+        return self.r.hgetall('game:' + str(bgg_id))
 
     def get_user_ratings(self, user_id):
         return self.r.hgetall(str(user_id) + ':rated')

@@ -1,5 +1,6 @@
 from bg_redis import BoardGameAPI
 from bg_neo4j import neo4jAPI
+from pprint import pprint
 from bg_rec_network import generate_colab_file, generate_content_file
 import pandas as pd
 import numpy as np
@@ -8,7 +9,7 @@ import csv
 
 def main():
     #'''
-    #redis_api = BoardGameAPI()
+    redis_api = BoardGameAPI()
     neo4j_api = neo4jAPI()
 
     # edges = pd.read_csv("final_content_edges.csv")
@@ -26,7 +27,7 @@ def main():
     #neo4j_api.add_node('user_nodes_int.csv', 'User', ['ID'])
 
     # populate content based edges to neo4j
-    neo4j_api.add_edge('168_content_edges.csv', 'BGGId', 'BGGId', 'Game', 'Game', 'SIM_GAME', 'score', ['to_node', 'from_node', 'sim_score'])
+    #neo4j_api.add_edge('168_content_edges.csv', 'BGGId', 'BGGId', 'Game', 'Game', 'SIM_GAME', 'score', ['to_node', 'from_node', 'sim_score'])
 
     # populate collaborative based edges to neo4j
     #neo4j_api.add_edge('colab_int.csv', 'ID', 'ID', 'User', 'User', 'SIM_USER', 'score', ['to_node', 'from_node', 'sim_score'])
@@ -45,31 +46,34 @@ def main():
     #neo4j_api.change_prop_toint('User', 'User', 'SIM_USER', 'score')
 
     # change relationship properties between games to int type
-    # neo4j_api.change_prop_toint('Game', 'Game', 'SIM_GAME', 'score')
+    #neo4j_api.change_prop_toint('Game', 'Game', 'SIM_GAME', 'score')
 
     # change relationship properties between user and games to int type
-    # neo4j_api.change_prop_toint('Game', 'User', 'RATED', 'score')
+    #neo4j_api.change_prop_toint('Game', 'User', 'RATED', 'score')
 
     # get recommended games
-    #neo4j_api.get_all_recs(redis_api, 7)
+    print(neo4j_api.get_all_recs(redis_api, 7))
 
-    """
+    print(neo4j_api.get_all_recs(redis_api, 200))
+
+
+
     # adds book data
-    redis_api.add_users('unique_users.csv', 1000)
-    print('users added')
+    # redis_api.add_users('unique_users.csv', 1000)
+    # print('users added')
 
     # adds game data
-    redis_api.add_games("final_games.csv", 5000)
-    print('games added')
+    # redis_api.add_games("final_games.csv", 5000)
+    # print('games added')
 
     # adds ratings data
-    df_ratings = pd.read_csv('user_ratings.csv')
-    df_ratings = df_ratings[df_ratings['Username'].isin(redis_api.get_all_usernames())]
-    df_ratings = df_ratings[df_ratings['BGGId'].isin([int(game) for game in redis_api.get_all_games()])]
-    df_ratings.to_csv('relevant_ratings.csv', index=False)
-    redis_api.add_ratings("relevant_ratings.csv")
-    print('ratings added')
-    """
+    # df_ratings = pd.read_csv('user_ratings.csv')
+    # df_ratings = df_ratings[df_ratings['Username'].isin(redis_api.get_all_usernames())]
+    # df_ratings = df_ratings[df_ratings['BGGId'].isin([int(game) for game in redis_api.get_all_games()])]
+    # df_ratings.to_csv('relevant_ratings.csv', index=False)
+    # redis_api.add_ratings("relevant_ratings.csv")
+    # print('ratings added')
+
 
     # makes_edge_file
     #generate_colab_file(redis_api, min_sim_score=1)
