@@ -126,21 +126,26 @@ class BoardGameAPI:
 
     def add_new_game(self, bgg_id, game_price, game_data=None):
         """
-
-        :param bgg_id:
-        :param game_price:
-        :param game_data:
-        :return:
+        adds new game to database
+        :param bgg_id: int or string
+            the id of the game to add
+        :param game_price: float
+            how much the game costs to purchase
+        :param game_data: dict
+            contains the relevant game data such as game weight, playtime, themes, etc.
+        :return: None
         """
+        # if the game is a new copy of an existing game, increment availability and add new copy data
         if bgg_id in self.r.smembers('unique_games'):
             next_id = max(self.r.lrange(str(bgg_id) + 'ids:', 0, -1)) + 1
             self.r.hincrby('availability', str(bgg_id), 1)
+        # if the game is a totally new game, add game data to db
         else:
             next_id = 0
             self.r.hset('availability', mapping={bgg_id: 1})
             self.r.hset('game:' + str(bgg_id), mapping=game_data)
+            self.r.sadd('unique_games', bgg_id)
         self.r.lpush(str(bgg_id) + 'ids:', next_id)
-        self.r.sadd('unique_games', bgg_id)
         self.r.hset(str(bgg_id) + ':conditions:', mapping={next_id: 'new'})
         self.money -= game_price
 
@@ -169,9 +174,11 @@ class BoardGameAPI:
 
     def get_next_avail_game(self, bgg_id):
         """
-
-        :param bgg_id:
-        :return:
+        getting next available game
+        :param bgg_id: int or string
+            the id of the game to get the next available sub id for
+        :return: int
+            the next available game sub id
         """
         avail_games = self.r.lrange(str(bgg_id) + 'ids:', 0, -1)
         if avail_games:
@@ -184,7 +191,8 @@ class BoardGameAPI:
             id of game
         :param game_id: int
             id of copy of specific game
-        :return:
+        :return: string
+            the condition of the input bgg and game id
         """
         return self.r.hget(str(bgg_id) + ':conditions:', game_id)
 
@@ -203,12 +211,18 @@ class BoardGameAPI:
     def rent_game(self, user, bgg_id, after_return=False, old_renter=None, game_id=None):
         """
         rents game by creating hash
-        :param user:
-        :param bgg_id:
-        :param after_return:
-        :param old_renter:
-        :param game_id:
-        :return:
+        :param user: int or string
+            user id to rent to
+        :param bgg_id: int or string
+            id of the game to be rented
+        :param after_return: binary flag
+            whether this instance of renting is automatic after the game is being returned or if its a
+            user requesting to rent the game
+        :param old_renter: int or string
+            the user id of the previous renter, only input if after_return
+        :param game_id: int or string
+            the sub id of the game to be rented, only input if after_return
+        :return: None
         """
         if after_return:
             self.rent_after_return(user, bgg_id, old_renter, game_id)
@@ -225,7 +239,7 @@ class BoardGameAPI:
                 # decrement the availability of the game
                 self.r.hincrby('availability', str(bgg_id), -1)
                 self.r.lpop(str(bgg_id) + 'ids:')
-                # assume each game is $20 to rent?
+                # add rental fee based on game condition
                 self.money += self.get_game_price(bgg_id, sub_id)
             else:
                 self.r.rpush('waitlist:' + str(bgg_id), user)
@@ -233,65 +247,81 @@ class BoardGameAPI:
     def apply_late_fee(self, user, bgg_id):
         """
         applies a late fee to the specific user's account for late games
-        :param user:
+        :param user: int
+            user id
         :param bgg_id: int
             id of game
         :return: None
         """
+        # determine if the user retured the game late. If so, late fee is 5 dollars per day past expected return date
         expected_return = self.r.hget('return_dates:' + str(user), bgg_id)
         today = date.today().strftime('%Y-%m-%d')
-        diff = (datetime.datetime.strptime(expected_return, '%Y-%m-%d').date() - datetime.datetime.strptime(today, '%Y-%m-%d').date())
+        diff = (datetime.datetime.strptime(expected_return, '%Y-%m-%d').date() -
+                datetime.datetime.strptime(today, '%Y-%m-%d').date())
         diff = diff.days
         if diff < 0:
             self.money -= diff * 5
 
-    def rent_after_return(self, user, bgg_id, old_renter, sub_id):
+    def rent_after_return(self, user, bgg_id, sub_id):
         """
-
-        :param user:
-        :param bgg_id:
-        :param old_renter:
-        :param sub_id:
-        :return:
+        rents game out after game has been returned
+        :param user: int or string
+            the user id for the next renter
+        :param bgg_id: int or string
+            id for the game being rented
+        :param sub_id: int or string
+            id for the copy of the game being rented
+        :return: None
         """
+        # remove the renter from the waitlist
         self.r.lpop('waitlist:' + str(bgg_id))
         today = date.today()
         week = today + datetime.timedelta(days=7)
-        # add to user rentals
+        # add game to user rentals and add expected return date
         self.r.hset('rentals:' + str(user), mapping={bgg_id: sub_id})
         self.r.hset('return_dates:' + str(user), mapping={bgg_id: week.strftime('%Y-%m-%d')})
-        # assume each game is $20 to rent?
+        # add money for rental fee
         self.money += self.get_game_price(bgg_id, sub_id)
 
     def check_condition(self, bgg_id, sub_id):
         """
         checking condition and removing game if condition is poor or worse
-        :param bgg_id: int
-        :param sub_id: int
-        :return:
+        :param bgg_id: int or string
+            game id
+        :param sub_id: int or string
+            game copy id
+        :return: Boolean
+            whether the game can return to rental circulation
         """
         # get condition, see if poor or worse, if so, remove from circulation, else check next renter
         cond = input('Please input the updated game condition: ')
         if cond == 'poor':
             return False
         else:
-            self.r.hset(str(bgg_id) + ':conditions:', mapping={sub_id:cond})
+            self.r.hset(str(bgg_id) + ':conditions:', mapping={sub_id: cond})
             return True
 
     def return_game(self, user, bgg_id):
         """
-
-        :param user:
-        :param bgg_id:
+        returns game
+        :param user: int or string
+            the user id returning the game
+        :param bgg_id: int or string
+            id of game being returned
         :return:
         """
+        # calculate and apply any late fees
         self.apply_late_fee(user, bgg_id)
+        # update user rentals to show that the game has been returned
         self.r.hset('return_dates:' + str(user), mapping={bgg_id: 'returned'})
         sub_id = self.r.hget('rentals:' + str(user), bgg_id)
+        # check if game condition allows the game to return to rental circulation
         if self.check_condition(bgg_id, sub_id):
+            # if there's a waitlist for the game, automatically rent it back out
             next_renter = self.r.lindex('waitlist:' + str(bgg_id), 0)
             if next_renter:
-                self.rent_game(next_renter, bgg_id, after_return=True, old_renter=user, game_id=sub_id)
+                self.rent_game(next_renter, bgg_id, after_return=True, game_id=sub_id)
+            # if there's not a waitlist, put the game back in inventory
             else:
                 self.r.hincrby('availability', str(bgg_id), 1)
                 self.r.rpush(str(bgg_id) + 'ids:', sub_id)
@@ -302,7 +332,7 @@ class BoardGameAPI:
         stores games rated by a single user and their ratings
         :param user: int
             user id integer
-        :return: tuple consisting of a dict of games rated by the user and a dict of the corresponding ratings
+        :return: tuple consisting of a set of games rated by the user and a dict of the corresponding ratings
         """
         user_ratings = self.r.hgetall(str(user) + ':rated')
         return ({game for game in user_ratings.keys()},

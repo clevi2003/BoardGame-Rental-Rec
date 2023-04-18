@@ -133,7 +133,6 @@ class neo4jAPI:
             sim_games.extend(self.run_cmd(cmd))
         # gets list of game names based on game id ensuring they are not games the user rated
         game_names = list(set([game_db.get_game_data(game['t.BGGId'])['Name'] for game in sim_games if game['t.BGGId'] not in user_games]))
-        print("all content recs: ", game_names)
         if len(game_names) >= n:
             return random.sample(game_names, n)
         else:
