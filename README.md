@@ -24,6 +24,6 @@ Use the package manager [pip](https://pip.pypa.io/en/stable/) to install these t
 pip install pandas
 ```
 
-Please use the following resources to install Neo4j and redis:
+Please use the following resources to install Neo4j and Redis:
 [Redis installation](https://redis.io/docs/getting-started/installation/install-redis-on-mac-os/)
 [Neo4j installation](https://neo4j.com/docs/operations-manual/current/installation/osx/)
