@@ -24,8 +24,8 @@ def main():
     neo4j_api.add_edge('ratings_edges.csv', 'BGGId', 'ID', 'Game', 'User', 'RATED', 'score',
                        ['to_node', 'from_node', 'Rating'])
 
-    # populate claudia's rating edges to neo4j for validation
-    neo4j_api.add_edge('claudia_ratings.csv', 'BGGId', 'ID', 'Game', 'User', 'RATED', 'score',
+    # populate validation user's rating edges to neo4j for validation
+    neo4j_api.add_edge('validation_user_ratings.csv', 'BGGId', 'ID', 'Game', 'User', 'RATED', 'score',
                        ['to_node', 'from_node', 'Rating'])
 
     # change game ids to int type
@@ -43,7 +43,7 @@ def main():
     # change relationship properties between user and games to int type
     neo4j_api.change_prop_toint('Game', 'User', 'RATED', 'score')
 
-    print("Claudia's recommendations:")
+    print("Validation user's recommendations:")
     print(neo4j_api.get_all_recs(redis_api, 1000))
 
     # adds book data
@@ -55,8 +55,8 @@ def main():
     # adds ratings data
     redis_api.add_ratings("relevant_ratings.csv")
 
-    # adds claudia's ratings for validation
-    redis_api.add_ratings("claudia_ratings_redis.csv")
+    # adds validation user's ratings for validation
+    redis_api.add_ratings("validation_user_ratings_redis.csv")
 
     # makes collaborative edge file
     # generate_colab_file(redis_api, min_sim_score=1)

@@ -44,10 +44,10 @@ class BoardGameAPI:
                 # make mapping of username to user id
                 self.r.hset('user_id_mapping', mapping={line: i})
         self.r.sadd('unique_ids', i + 1)
-        self.r.sadd('unique_usernames', 'clevi2003')
+        self.r.sadd('unique_usernames', 'validation')
 
         # make mapping of username to user id
-        self.r.hset('user_id_mapping', mapping={'clevi2003': i+1})
+        self.r.hset('user_id_mapping', mapping={'validation': i+1})
         print(i+1)
 
 
