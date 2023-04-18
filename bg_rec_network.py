@@ -1,8 +1,4 @@
-from bg_redis import BoardGameAPI
 import csv
-import time
-from functools import lru_cache, reduce
-from itertools import accumulate
 
 QUANT_FEATS = {'GameWeight': 1, 'MinPlayers': 1, 'MaxPlayers': 1, 'ComAgeRec': 2, 'MfgPlaytime': 30,
                'ComMinPlaytime': 30, 'ComMaxPlaytime': 30, 'MfgAgeRec':2}
@@ -46,81 +42,92 @@ ALL_FEATS = ['GameWeight', 'MinPlayers', 'MaxPlayers', 'MfgPlaytime', 'ComMinPla
 
 # for collaborative recs
 def write_user_sim_score(writer, user_a, user_a_ratings_tuple, user_b, game_db, min_score=0):
+    """
+    writes in a new row with similarity score between users
+    :param writer: object
+        csv infile writer
+    :param user_a: string
+        user id in string format
+    :param user_a_ratings_tuple: tuple
+        tuple consisting of a dict with games rated by user and a dict with the games and ratings
+    :param user_b: string
+        user id in string format
+    :param game_db: object
+        board game redis API
+    :param min_score: int
+        minimum similarity score for line to be written into file
+    :return: None
+    """
     user_b_ratings_tuple = game_db.get_transform_users_ratings(user_b)
     user_a_ratings = user_a_ratings_tuple[1]
     user_b_ratings = user_b_ratings_tuple[1]
 
     users_a_b_games = user_a_ratings_tuple[0].intersection(user_b_ratings_tuple[0])
+    # computes similarity score between two users
     score = 0
     for game in users_a_b_games:
         user_a_rating = user_a_ratings[game][0]
         user_b_rating = user_b_ratings[game][0]
+        # increases score by 1 if absolute difference for the same game is less than 2
         if abs(user_a_rating - user_b_rating) <= 2:
-            print('True')
             score += 1
-    '''
-    score = sum([1 if abs(user_a_ratings[game][0] - user_b_ratings[game][0]) <= 2
-                 else 0 for game in users_a_b_games])
-    
-    score = len(set(filter(lambda book: user_a_ratings[book][1] <= user_b_ratings[book][0] <=
-                                        user_a_ratings[book][2], users_a_b_games)))
-    '''
+    # writes row in if current score is greater than the min score
     if score >= min_score:
         row = [str(user_a), str(user_b), str(score)]
         writer.writerow(row)
 
 
 # for collaborative recs
-def generate_colab_file(book_db, min_sim_score=1):
-    print(len(ALL_FEATS))
-    users = [int(user) for user in book_db.get_all_users()]
+def generate_colab_file(game_db, min_sim_score=1):
+    """
+    creates collaborative based edge file
+    :param game_db: object
+        board game redis API
+    :param min_sim_score: int
+        min similarity score for row to be added into file
+    :return: None
+    """
+    users = [int(user) for user in game_db.get_all_users()]
     # initialize writer and add header to file
     with open('edges_colab.csv', 'w') as infile:
         writer = csv.writer(infile)
         header = ['to_node', 'from_node', 'sim_score']
         writer.writerow(header)
+        # writing new row between two users based on computed similarity score
         for i in range(len(users) - 1):
             outer_user = users[i]
-            outer_ratings = book_db.get_transform_users_ratings(outer_user)
+            outer_ratings = game_db.get_transform_users_ratings(outer_user)
             for inner_user in users[i + 1:]:
-                write_user_sim_score(writer, outer_user, outer_ratings, inner_user, book_db,
+                write_user_sim_score(writer, outer_user, outer_ratings, inner_user, game_db,
                                      min_score=min_sim_score)
 
 
 # for content recs
 def write_game_sim_score(writer, game_a, game_a_data, game_b, game_db, min_score=0):
-    # game_b_data = {key: 0 if value == '' else value for key, value in game_db.get_game_data(game_b).items()}
-    # game_a_data = {key: 0 if value == '' else value for key, value in game_a_data.items()}
+    """
+    writes in a new row with similarity score between games
+    :param writer: object
+        csv infile writer
+    :param game_a: string
+        game id in string format
+    :param game_a_data: dictionary
+        dict of game data based on an inputted game id
+    :param game_b: string
+        game id in string format
+    :param game_db: object
+        board game redis API
+    :param min_score: int
+        minimum similarity score for line to be written into file
+    :return: None
+    """
     game_b_data = game_db.get_game_data(game_b)
-    '''
-    game_data = {}
-    for key, value in game_a_data.items():
-        if value == '':
-            game_data[key] = 0
-        else:
-            game_data[key] = value
-    '''
-
-    """
-    score = []
-    for feature in game_a_data.keys():
-        if feature in QUANT_FEATS.keys():
-            if abs(game_a_data[feature] - game_b_data[feature] <= QUANT_FEATS[feature]):
-                score.append(1)
-        else:
-            if game_a_data[feature] == game_b_data[feature]:
-                score.append(1)
-    print('----------------')
-    print(game_a_data)
-    print(game_b_data)
-    print(game_a_data.keys())
-    print(game_b_data.keys())
-    """
+    # computing similarity score between two games
     score = sum([1 for feature in ALL_FEATS if
                  (feature in QUANT_FEATS.keys() and abs(float(game_a_data[feature]) - float(game_b_data[feature])) <=
                   QUANT_FEATS[feature]) or
                  (feature not in QUANT_FEATS.keys() and
                   game_a_data[feature] == game_b_data[feature])])
+    # writes row in if current score is greater than the min score
     if score >= min_score:
         row = [str(game_a), str(game_b), str(score)]
         writer.writerow(row)
@@ -128,12 +135,21 @@ def write_game_sim_score(writer, game_a, game_a_data, game_b, game_db, min_score
 
 # for content recs
 def generate_content_file(game_db, min_sim_score=5):
+    """
+    creates content based edge file
+    :param game_db: object
+        board game redis API
+    :param min_sim_score: int
+        min similarity score for line to be added into file
+    :return: None
+    """
     games = list({game for game in game_db.get_all_games()})
     # initialize writer and add header to file
     with open('edges_content.csv', 'w') as infile:
         writer = csv.writer(infile)
         header = ['to_node', 'from_node', 'sim_score']
         writer.writerow(header)
+        # writing new row between two games based on computed similarity score
         for i in range(len(games) - 1):
             outer_game = games[i]
             outer_data = game_db.get_game_data(outer_game)
@@ -141,10 +157,3 @@ def generate_content_file(game_db, min_sim_score=5):
                 write_game_sim_score(writer, outer_game, outer_data, inner_game, game_db,
                                      min_score=min_sim_score)
 
-
-"""
-For every game combo: 
-for quant features:
-see if within threshold
-for other features, check equality
-"""
